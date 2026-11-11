@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<meta name="description" content="Free tool that turns one ProPresenter slide and a spreadsheet into a set of presentations, one per row. Runs in your browser.">
+</head>
+<body>
+<title>Slide Merge</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a production cue sheet. Setup runs down the left; the slide monitor and run list sit on the right. */
+:root {
+  --bg: #eef1f4; --panel: #fbfcfd; --line: #d3dae1; --ink: #17212b; --muted: #566575;
+  --accent: #1c5fc9; --accent-ink: #ffffff; --accent-soft: #dfe9f9;
+  --stage: #1a2430; --good: #17794a; --good-soft: #dcefe5; --warn: #93590a; --warn-soft: #f8ead0; --bad: #b3261e; --bad-soft: #fae1df;
+  --body: "Hanken Grotesk", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12181f; --panel: #1a222b; --line: #303c49; --ink: #e8edf2; --muted: #9cabba;
+  --accent: #79aaf5; --accent-ink: #0e1a2b; --accent-soft: #20324b;
+  --stage: #0b1016; --good: #6fd2a1; --good-soft: #17352a; --warn: #edbd6c; --warn-soft: #3b2d14; --bad: #f4a29b; --bad-soft: #43201e;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12181f; --panel: #1a222b; --line: #303c49; --ink: #e8edf2; --muted: #9cabba;
+  --accent: #79aaf5; --accent-ink: #0e1a2b; --accent-soft: #20324b;
+  --stage: #0b1016; --good: #6fd2a1; --good-soft: #17352a; --warn: #edbd6c; --warn-soft: #3b2d14; --bad: #f4a29b; --bad-soft: #43201e;
+  color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45 }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 24px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px }
+h1 { font-size: 26px; font-weight: 700; margin: 0; letter-spacing: -.01em }
+header p { margin: 0; color: var(--muted); min-width: 0 }
+.grid { display: grid; grid-template-columns: minmax(0, 390px) minmax(0, 1fr); gap: 20px; align-items: start }
+.col { display: grid; gap: 16px; min-width: 0 }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 12px; min-width: 0 }
+h2 { font-size: 15px; font-weight: 700; margin: 0; display: flex; gap: 8px; align-items: baseline }
+h2 .n { font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 500 }
+.hint { color: var(--muted); font-size: 13.5px; margin: 0 }
+label { font-size: 13.5px; font-weight: 600 }
+.drop { display: grid; gap: 2px; justify-items: center; text-align: center; padding: 18px 12px; border: 1.5px dashed var(--line); border-radius: 6px; cursor: pointer; transition: border-color .15s, background .15s }
+.drop:hover, .drop.over, .drop:focus-within { border-color: var(--accent); background: var(--accent-soft) }
+.drop strong { font-weight: 600; overflow-wrap: anywhere }
+.drop span { color: var(--muted); font-size: 13px }
+.sr { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden }
+.row { display: grid; gap: 4px; min-width: 0 }
+select, textarea, input[type=text] { width: 100%; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px }
+textarea { min-height: 112px; resize: vertical; font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre; overflow-x: auto }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
+.check { display: flex; gap: 8px; align-items: center; font-weight: 400 }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+button, .file { font: inherit; font-weight: 600; font-size: 14px; border-radius: 4px; padding: 7px 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer }
+button:hover:not(:disabled), .file:hover { border-color: var(--accent) }
+button:disabled { opacity: .55; cursor: not-allowed }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); padding: 10px 16px; font-size: 15px }
+.check.clear { font-size: 13px; color: var(--muted) }
+.chips { display: flex; flex-wrap: wrap; gap: 6px }
+.chip { font-size: 12.5px; font-weight: 500; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); border-color: transparent; color: var(--ink); overflow-wrap: anywhere; text-align: left }
+.boxmeta { font-family: var(--mono); font-size: 12px; color: var(--muted); font-weight: 400 }
+.note { font-size: 13.5px; padding: 8px 10px; border-radius: 4px; background: var(--warn-soft); color: var(--warn); margin: 0 }
+.note.err { background: var(--bad-soft); color: var(--bad) }
+.note.ok { background: var(--good-soft); color: var(--good) }
+.monitor { background: var(--stage); border-radius: 6px; padding: 12px; display: grid; gap: 8px; min-width: 0 }
+.mhead { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-family: var(--mono); font-size: 12px; color: #aebbc8 }
+.mhead .pv { color: #6fd2a1 }
+.mhead { align-items: center }
+.pager { display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums }
+.pg { font: 600 17px/1 var(--body); width: 30px; height: 26px; padding: 0; border-radius: 4px; border: 1px solid #3a4757; background: transparent; color: #d6dee6; cursor: pointer }
+.pg:hover:not(:disabled) { border-color: #79aaf5; color: #fff }
+.pg:disabled { opacity: .35; cursor: default }
+.monitor:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.slide { position: relative; aspect-ratio: 16 / 9; width: 100%; max-width: 100%; overflow: hidden; container-type: inline-size; background-color: #87929e; background-image: repeating-conic-gradient(#7f8a96 0 25%, #8d98a4 0 50%); background-size: 24px 24px; background-position: center }
+.slide.has-bg { background-size: cover; background-repeat: no-repeat }
+.tb { position: absolute; display: flex; flex-direction: column; outline: 1px dashed rgba(23,33,43,.28); font-family: Metropolis, Montserrat, Arial, Helvetica, sans-serif; font-weight: 700; line-height: 1.15; white-space: pre-wrap; overflow-wrap: anywhere; overflow: visible }
+.tb.over { outline: 2px solid #d92d20 }
+.tb.fixed { outline-color: transparent }
+.runhead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px }
+.tablewrap { overflow-x: auto; max-height: 340px; overflow-y: auto; border: 1px solid var(--line); border-radius: 4px }
+table { border-collapse: collapse; width: 100%; font-size: 14px }
+th { position: sticky; top: 0; background: var(--panel); text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap }
+td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere }
+td.num { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums }
+tbody tr { cursor: pointer }
+tbody tr:last-child td { border-bottom: 0 }
+tbody tr:hover { background: var(--accent-soft) }
+tbody tr[aria-selected=true] { background: var(--accent-soft) }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--good-soft); color: var(--good); white-space: nowrap }
+.pill.warn { background: var(--warn-soft); color: var(--warn) }
+.pill.err { background: var(--bad-soft); color: var(--bad) }
+.example { font-family: var(--mono); font-size: 11.5px; padding: 1px 6px; border-radius: 3px; background: var(--warn-soft); color: var(--warn) }
+.foot { color: var(--muted); font-size: 13px; margin: 0; max-width: 78ch }
+.intro { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px }
+.intro div { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; display: grid; gap: 4px; align-content: start; min-width: 0 }
+.intro h3, .guide h3 { font-size: 13px; font-weight: 700; margin: 0; text-transform: uppercase; letter-spacing: .06em; color: var(--muted) }
+.intro p, .guide p, .guide li { margin: 0; font-size: 14px; overflow-wrap: anywhere }
+.intro code, .guide code { font-family: var(--mono); font-size: 12.5px; background: var(--accent-soft); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere }
+.guide { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start }
+.guide > div { display: grid; gap: 10px; min-width: 0 }
+.guide h2 { font-size: 18px }
+.guide ol { margin: 0; padding-left: 20px; display: grid; gap: 8px }
+details { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px }
+details[open] summary { margin-bottom: 6px }
+summary { cursor: pointer; font-weight: 600; font-size: 14.5px }
+details p + p { margin-top: 6px }
+@media (max-width: 880px) { .grid, .guide { grid-template-columns: minmax(0, 1fr) } .intro { grid-template-columns: minmax(0, 1fr) } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Slide Merge</h1>
+    <p>Turn one ProPresenter slide and a spreadsheet into a set of presentations, one per row, ready to drop into your library.</p>
+  </header>
+
+  <div class="intro">
+    <div>
+      <h3>1. Build one slide</h3>
+      <p>In ProPresenter, design a slide the way every copy should look. Type placeholder text into each box you want filled in, such as “Name” and “Title.”</p>
+    </div>
+    <div>
+      <h3>2. Get your list ready</h3>
+      <p>Put one person or item per row in a spreadsheet, with column names in the first row, such as <code>First Name</code>, <code>Last Name</code> and <code>Title</code>.</p>
+    </div>
+    <div>
+      <h3>3. Merge and import</h3>
+      <p>Work through steps 1 to 4 below, download the zip, then drag the files onto a library in ProPresenter. The example below shows how it works.</p>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="col">
+      <section>
+        <h2><span class="n">1</span>Template</h2>
+        <label class="drop" id="dropTpl" for="tplFile">
+          <input class="sr" type="file" id="tplFile" accept=".pro">
+          <strong id="tplName">Drop a .pro file here</strong>
+          <span id="tplSub">or click to choose one from your library</span>
+        </label>
+        <p class="note err" id="tplErr" hidden></p>
+        <p class="note" id="tplNote" hidden></p>
+      </section>
+
+      <section>
+        <h2><span class="n">2</span>Names and details</h2>
+        <div class="row">
+          <label for="data">Paste from a spreadsheet, or type comma-separated rows</label>
+          <textarea id="data" spellcheck="false"></textarea>
+        </div>
+        <div class="btnrow">
+          <label class="file" for="csvFile">Upload CSV</label>
+          <input class="sr" type="file" id="csvFile" accept=".csv,.tsv,.txt">
+          <label class="check" for="hasHeader"><input type="checkbox" id="hasHeader" checked>First row is column names</label>
+        </div>
+        <p class="note err" id="dataErr" hidden></p>
+      </section>
+
+      <section>
+        <h2><span class="n">3</span>Choose what goes in each text box</h2>
+        <p class="hint">Click columns to add them, and type any extra words. Leave a box empty to keep the template text, or check “Leave this box blank” to clear it.</p>
+        <div class="col" id="maps"></div>
+      </section>
+
+      <section>
+        <h2><span class="n">4</span>Name the presentations</h2>
+        <div class="row">
+          <label for="pattern">Name pattern</label>
+          <input type="text" id="pattern" autocomplete="off" spellcheck="false">
+          <p class="hint" id="patternHint"></p>
+        </div>
+      </section>
+    </div>
+
+    <div class="col" id="viewer">
+      <div class="monitor" id="monitor" tabindex="0" aria-label="Slide preview. Use the up and down arrow keys to move through the list.">
+        <div class="mhead"><span class="pv" id="pvLabel">PREVIEW</span>
+          <span class="pager" id="pager">
+            <button type="button" class="pg" id="pvPrev" aria-label="Previous slide" title="Previous (↑)">‹</button>
+            <span id="pvMeta" aria-live="polite"></span>
+            <button type="button" class="pg" id="pvNext" aria-label="Next slide" title="Next (↓)">›</button>
+          </span>
+        </div>
+        <div class="slide" id="slide" role="img" aria-label="Preview of the selected slide"></div>
+      </div>
+      <div class="btnrow">
+        <label class="file" for="bgFile" id="bgLabel">Add slide background to preview</label>
+        <input class="sr" type="file" id="bgFile" accept="image/*">
+        <button type="button" id="bgClear" hidden>Remove background</button>
+        <span class="hint" id="bgHint">Preview only. It isn't added to your files.</span>
+      </div>
+
+      <section>
+        <div class="runhead">
+          <h2 id="runTitle">Presentations</h2>
+          <button class="primary" id="go" type="button">Download zip</button>
+        </div>
+        <p class="hint" id="why"></p>
+        <p class="note" id="status" role="status" hidden></p>
+        <div class="tablewrap"><table>
+          <thead><tr id="thead"></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="guide">
+    <div>
+      <h2>Step by step</h2>
+      <ol>
+        <li><strong>Find your template file.</strong> Each ProPresenter presentation is saved as a <code>.pro</code> file. On a Mac, libraries are in <code>~/Library/Application Support/RenewedVision/ProPresenter/UserWorkspaces/ProPresenter/Libraries</code>, one folder per library. In Finder, choose Go › Go to Folder and paste that path. Drop the file on step 1.</li>
+        <li><strong>Add your list.</strong> Copy the cells from Excel, Numbers or Google Sheets and paste them into step 2, or upload a CSV. Leave “First row is column names” checked if your first row has headings.</li>
+        <li><strong>Fill each text box.</strong> In step 3, click a column button to add it to a box. You can combine columns and add words, for example <code>{First Name} {Last Name}</code> or <code>Pastor {Last Name}</code>. Leave a box empty to keep the template text on every slide, or check “Leave this box blank” to clear it.</li>
+        <li><strong>Name the presentations.</strong> Step 4 sets each file name the same way, for example <code>Fall Retreat - {Last Name}</code>. Duplicate names get a number added.</li>
+        <li><strong>Check the list.</strong> Click any row to preview it, then use the ↑ and ↓ keys or the arrows above the preview to page through. Rows marked “Check fit” may run outside their box; the red outline shows which one.</li>
+        <li><strong>Download and import.</strong> Unzip the download, then drag the <code>.pro</code> files onto a library in ProPresenter’s sidebar. Open a few to check them before you use them live.</li>
+      </ol>
+    </div>
+    <div>
+      <h2>Questions</h2>
+      <details>
+        <summary>Is my list uploaded anywhere?</summary>
+        <p>No. The page reads your template and list in your browser and builds the files there. When you download, it sends one anonymous count to this site: the date and how many presentations you made. Your names, columns and files are never sent.</p>
+      </details>
+      <details>
+        <summary>Why can’t I change one of the text boxes?</summary>
+        <p>The box uses more than one style inside its text, such as a bold word in a plain sentence. Slide Merge leaves those boxes as they are. Give the box a single style in ProPresenter and choose the template again.</p>
+      </details>
+      <details>
+        <summary>The background is missing after I import.</summary>
+        <p>Presentations point to their images and videos by where they’re stored on the computer that made them. Import on that computer, or make sure the same media is in ProPresenter on the computer you import to.</p>
+      </details>
+      <details>
+        <summary>A name runs outside its box.</summary>
+        <p>Fit warnings are estimates, because this page can’t use your slide’s exact fonts. Shorten the text in your list, or adjust that slide in ProPresenter after importing. Adding your background image to the preview makes it easier to judge.</p>
+      </details>
+      <details>
+        <summary>Can I upload an Excel file?</summary>
+        <p>Not directly. Copy the cells and paste them into step 2, or save the sheet as CSV first.</p>
+      </details>
+      <details>
+        <summary>Which versions of ProPresenter work?</summary>
+        <p>Slide Merge has been tested with ProPresenter 21.4 on a Mac. Other versions may work, but ProPresenter’s file format isn’t published and could change in an update. Try one file before importing a large batch, and back up your library first.</p>
+      </details>
+    </div>
+  </div>
+
+  <p class="foot">Slide Merge is an independent tool. It isn’t made by or affiliated with Renewed Vision, the maker of ProPresenter.</p>
+</div>
+
+<script>
+/* Reads a .pro file as a generic field tree, so every setting the page does not
+   touch is written back unchanged. Handles text boxes, style ranges and IDs. */
+const ProEngine = (() => {
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const UUID_RE = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
+  const KEEP_UUID_SUFFIX = '.9.3.1.1'; // the background image reference
+
+  function readVarint(b, i) {
+    let value = 0, mult = 1;
+    for (;;) {
+      if (i >= b.length) throw new Error('truncated');
+      const c = b[i++];
+      value += (c & 127) * mult;
+      mult *= 128;
+      if (c < 128) return [value, i];
+      if (mult > 2 ** 70) throw new Error('bad varint');
+    }
+  }
+  function varint(n) {
+    const out = [];
+    for (;;) {
+      const c = n % 128;
+      n = Math.floor(n / 128);
+      if (n) out.push(c + 128); else { out.push(c); return out; }
+    }
+  }
+  function parse(b) {
+    const fields = [];
+    let i = 0;
+    while (i < b.length) {
+      let key; [key, i] = readVarint(b, i);
+      const f = Math.floor(key / 8), w = key % 8;
+      if (f === 0) throw new Error('bad field');
+      if (w === 0) {
+        const s = i; let v; [v, i] = readVarint(b, i);
+        fields.push({ f, w, v, raw: b.subarray(s, i) });
+      } else if (w === 1 || w === 5) {
+        const n = w === 1 ? 8 : 4;
+        if (i + n > b.length) throw new Error('truncated');
+        fields.push({ f, w, v: b.subarray(i, i + n) }); i += n;
+      } else if (w === 2) {
+        let n; [n, i] = readVarint(b, i);
+        if (i + n > b.length) throw new Error('truncated');
+        fields.push({ f, w, v: b.subarray(i, i + n) }); i += n;
+      } else throw new Error('bad wire type');
+    }
+    return fields;
+  }
+  function serialize(fields) {
+    const parts = []; let size = 0;
+    const push = p => { parts.push(p); size += p.length; };
+    for (const x of fields) {
+      push(Uint8Array.from(varint(x.f * 8 + x.w)));
+      if (x.w === 0) push(x.raw || Uint8Array.from(varint(x.v)));
+      else if (x.w === 2) { push(Uint8Array.from(varint(x.v.length))); push(x.v); }
+      else push(x.v);
+    }
+    const out = new Uint8Array(size); let o = 0;
+    for (const p of parts) { out.set(p, o); o += p.length; }
+    return out;
+  }
+  const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const tryParse = b => { try { return parse(b); } catch { return null; } };
+  const isRtf = v => v.length > 5 && v[0] === 123 && v[1] === 92 && v[2] === 114 && v[3] === 116 && v[4] === 102;
+  const dbl = v => new DataView(v.buffer, v.byteOffset, 8).getFloat64(0, true);
+  const get = (fields, n) => fields.find(x => x.f === n);
+  const uuid = () => (crypto.randomUUID ? crypto.randomUUID()
+    : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16))).toUpperCase();
+
+  /* ---- RTF ---- */
+  function rtfBody(s) {
+    // Skips the document header and leading controls, so the text can be
+    // swapped while the header's font, size and color stay in place.
+    let i = 1, depth = 1;
+    const end = s.lastIndexOf('}');
+    while (i < end) {
+      const c = s[i];
+      if (c === '{') {
+        let d = 0;
+        do {
+          if (s[i] === '\\') i++;
+          else if (s[i] === '{') d++;
+          else if (s[i] === '}') d--;
+          i++;
+        } while (d > 0 && i < end);
+        continue;
+      }
+      if (c === '\n' || c === '\r') { i++; continue; }
+      if (c === '\\') {
+        const m = /^\\([a-zA-Z]+)(-?\d+)? ?/.exec(s.slice(i, i + 60));
+        if (m && !(m[1] === 'u' && m[2]) && m[1] !== 'uc' && m[1] !== 'par') { i += m[0].length; continue; }
+      }
+      break;
+    }
+    return [i, end];
+  }
+  const CP1252 = '€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f\u0090‘’“”•–—˜™š›œ\u009džŸ';
+  function rtfText(s) {
+    let out = '', i = 0, skip = 1;
+    while (i < s.length) {
+      const c = s[i];
+      if (c === '\n' || c === '\r') { i++; continue; }
+      if (c !== '\\') { out += c; i++; continue; }
+      const n = s[i + 1];
+      if (n === '\\' || n === '{' || n === '}') { out += n; i += 2; continue; }
+      if (n === '\n' || n === '\r') { out += '\n'; i += 2; continue; }
+      if (n === "'") {
+        const b = parseInt(s.substr(i + 2, 2), 16);
+        out += b >= 128 && b < 160 ? CP1252[b - 128] : String.fromCharCode(b);
+        i += 4; continue;
+      }
+      const m = /^\\([a-zA-Z]+)(-?\d+)? ?/.exec(s.slice(i, i + 60));
+      if (!m) { i += 2; continue; }
+      i += m[0].length;
+      if (m[1] === 'uc') skip = +m[2];
+      else if (m[1] === 'u') { let u = +m[2]; if (u < 0) u += 65536; out += String.fromCharCode(u); i += skip; }
+      else if (m[1] === 'par' || m[1] === 'line') out += '\n';
+      else if (m[1] === 'tab') out += '\t';
+    }
+    return out;
+  }
+  function rtfEscape(text) {
+    let out = '';
+    for (const ch of String(text)) {
+      const code = ch.codePointAt(0);
+      if (ch === '\\' || ch === '{' || ch === '}') out += '\\' + ch;
+      else if (ch === '\n') out += '\\\n';
+      else if (code >= 32 && code < 127) out += ch;
+      else if (code > 0xffff) {
+        for (let k = 0; k < ch.length; k++) out += `\\uc0\\u${ch.charCodeAt(k)} `;
+      } else if (code >= 160) out += `\\uc0\\u${code} `;
+      // other control characters are dropped
+    }
+    return out;
+  }
+  function rtfStyle(s) {
+    const fs = /\\fs(\d+)/.exec(s);
+    const align = /\\qc\b/.test(s) ? 'center' : /\\qr\b/.test(s) ? 'right' : /\\qj\b/.test(s) ? 'justify' : 'left';
+    let color = null;
+    const tbl = /\{\\colortbl;([^}]*)\}/.exec(s), cf = /\\cf(\d+)/.exec(s);
+    if (tbl && cf && +cf[1] > 0) {
+      const m = /\\red(\d+)\\green(\d+)\\blue(\d+)/.exec(tbl[1].split(';')[+cf[1] - 1] || '');
+      if (m) color = `rgb(${m[1]},${m[2]},${m[3]})`;
+    }
+    const font = /\\f0\\fnil[^ ]* ([^;]+);/.exec(s);
+    return { fontPx: fs ? +fs[1] / 2 : 60, align, color, family: font ? font[1].replace(/-(Regular|Bold)$/, '') : '' };
+  }
+
+  /* ---- style ranges ---- */
+  function eachRange(block, visit) {
+    for (const f of block) {
+      if (f.f !== 3 || f.w !== 2) continue;
+      const attrs = parse(f.v); let changed = false;
+      for (const a of attrs) {
+        if (a.f !== 13 || a.w !== 2) continue;
+        const style = parse(a.v);
+        const r = get(style, 1);
+        if (!r || r.w !== 2) continue;
+        const rng = parse(r.v);
+        const replaced = visit(rng, style);
+        if (replaced) { r.v = serialize(rng); a.v = serialize(style); changed = true; }
+      }
+      if (changed) f.v = serialize(attrs);
+    }
+  }
+  function describeBox(block, element) {
+    const rtf = dec.decode(get(block, 5).v);
+    const [a, b] = rtfBody(rtf);
+    const text = rtfText(rtf.slice(a, b));
+    if (!text.trim()) return null;
+    const units = text.length;
+    let reason = '', caps = false;
+    eachRange(block, (rng, style) => {
+      const start = get(rng, 1), stop = get(rng, 2);
+      if (start && start.v !== 0) reason = 'This box mixes formatting inside its text, so it stays as it is. Use one style for the whole box to map it.';
+      if ((stop ? stop.v : 0) !== units && !reason) reason = 'The formatting in this box could not be read, so it stays as it is.';
+      const c = get(style, 2);
+      if (c && c.w === 0 && c.v === 1) caps = true;
+      return false;
+    });
+    let x = 0, y = 0, w = 0, h = 0;
+    const geo = element && get(element, 3);
+    if (geo) {
+      const g = tryParse(geo.v) || [];
+      const o = get(g, 1), z = get(g, 2);
+      const pair = m => { const p = m && tryParse(m.v) || []; const i = get(p, 1), j = get(p, 2); return [i ? dbl(i.v) : 0, j ? dbl(j.v) : 0]; };
+      [x, y] = pair(o); [w, h] = pair(z);
+    }
+    const v = get(block, 6);
+    return { text, caps, x, y, w, h, reason, mappable: !reason, valign: v ? v.v : 0, ...rtfStyle(rtf) };
+  }
+  function replaceText(block, text) {
+    const f = get(block, 5);
+    const rtf = dec.decode(f.v);
+    const [a, b] = rtfBody(rtf);
+    const body = rtfEscape(text);
+    f.v = enc.encode(rtf.slice(0, a) + body + rtf.slice(b));
+    const units = rtfText(body).length;
+    eachRange(block, rng => {
+      const stop = get(rng, 2);
+      if (!stop) { if (units) rng.push({ f: 2, w: 0, v: units }); return true; }
+      stop.v = units; stop.raw = null;
+      return true;
+    });
+  }
+
+  /* ---- tree walk ---- */
+  function walk(bytes, path, ctx, element) {
+    const fields = parse(bytes);
+    let changed = false;
+    for (const f of fields) {
+      if (f.w !== 2 || !f.v.length) continue;
+      const here = path + '.' + f.f;
+      if (here === '.3') continue; // presentation name
+      if (f.v.length === 36) {
+        const s = dec.decode(f.v);
+        if (UUID_RE.test(s)) {
+          if (ctx.ids && !here.endsWith(KEEP_UUID_SUFFIX)) {
+            if (!ctx.ids.has(s)) ctx.ids.set(s, uuid());
+            f.v = enc.encode(ctx.ids.get(s)); changed = true;
+          }
+          continue;
+        }
+      }
+      if (isRtf(f.v)) continue;
+      if (f.f === 13) {
+        const block = tryParse(f.v);
+        const r = block && get(block, 5);
+        if (r && r.w === 2 && isRtf(r.v)) {
+          const box = describeBox(block, fields);
+          if (box) {
+            const index = ctx.count++;
+            if (ctx.boxes) ctx.boxes.push({ index, ...box });
+            if (ctx.values && Object.hasOwn(ctx.values, index)) {
+              replaceText(block, ctx.values[index]);
+              f.v = serialize(block); changed = true;
+            }
+          }
+          continue;
+        }
+      }
+      const inner = tryParse(f.v);
+      if (inner && same(serialize(inner), f.v)) {
+        const nv = walk(f.v, here, ctx, fields);
+        if (nv !== f.v) { f.v = nv; changed = true; }
+      }
+    }
+    return changed ? serialize(fields) : bytes;
+  }
+
+  function analyze(bytes) {
+    if (bytes[0] === 0x50 && bytes[1] === 0x4b) throw new Error('This is a zip or .probundle. Choose the .pro file from your ProPresenter library.');
+    const top = tryParse(bytes);
+    if (!top || !same(serialize(top), bytes) || !get(top, 3) || !get(top, 13)) throw new Error('This file does not look like a ProPresenter presentation. Choose a .pro file from your library.');
+    const ctx = { count: 0, boxes: [] };
+    walk(bytes, '', ctx);
+    if (!ctx.boxes.length) throw new Error('No text boxes with text were found. Type placeholder text into each box, then export the slide again.');
+    const cue = top.filter(f => f.f === 13).length;
+    const name = dec.decode(get(top, 3).v);
+    const media = /file:[^\s"]*?\/([^\/\s"]+\.(?:png|jpe?g|mov|mp4|tiff?))/i.exec(dec.decode(bytes));
+    const build = /(?:^|[^0-9])(\d{9})(?:[^0-9]|$)/.exec(dec.decode(get(top, 1).v));
+    return { name, boxes: ctx.boxes, slides: cue, media: media ? decodeURIComponent(media[1]) : '', build: build ? build[1] : '' };
+  }
+  function generate(bytes, presentation, values) {
+    const top = parse(bytes);
+    get(top, 3).v = enc.encode(presentation);
+    const ctx = { count: 0, ids: new Map(), values };
+    return walk(serialize(top), '', ctx);
+  }
+
+  /* ---- zip (stored, no compression) ---- */
+  const CRC = new Uint32Array(256).map((_, n) => {
+    let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c;
+  });
+  const crc32 = b => { let c = -1; for (const x of b) c = CRC[(c ^ x) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; };
+  function zip(files) {
+    const now = new Date();
+    const time = now.getHours() << 11 | now.getMinutes() << 5 | now.getSeconds() >> 1;
+    const date = (now.getFullYear() - 1980) << 9 | (now.getMonth() + 1) << 5 | now.getDate();
+    const chunks = [], central = []; let offset = 0;
+    for (const { name, data } of files) {
+      const n = enc.encode(name), crc = crc32(data);
+      const head = new DataView(new ArrayBuffer(30));
+      head.setUint32(0, 0x04034b50, true); head.setUint16(4, 20, true); head.setUint16(6, 0x800, true);
+      head.setUint16(10, time, true); head.setUint16(12, date, true); head.setUint32(14, crc, true);
+      head.setUint32(18, data.length, true); head.setUint32(22, data.length, true); head.setUint16(26, n.length, true);
+      chunks.push(new Uint8Array(head.buffer), n, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x800, true);
+      c.setUint16(12, time, true); c.setUint16(14, date, true); c.setUint32(16, crc, true);
+      c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, n.length, true);
+      c.setUint32(42, offset, true);
+      central.push(new Uint8Array(c.buffer), n);
+      offset += 30 + n.length + data.length;
+    }
+    const size = central.reduce((a, x) => a + x.length, 0);
+    const e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+    e.setUint32(12, size, true); e.setUint32(16, offset, true);
+    return new Blob([...chunks, ...central, new Uint8Array(e.buffer)], { type: 'application/zip' });
+  }
+
+  /* ---- spreadsheet text ---- */
+  function parseTable(text) {
+    text = text.replace(/^﻿/, '');
+    const first = text.split(/\r?\n/, 1)[0] || '';
+    const sep = first.includes('\t') ? '\t' : first.split(';').length > first.split(',').length ? ';' : ',';
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += c;
+      } else if (c === '"' && cell === '') q = true;
+      else if (c === sep) { row.push(cell); cell = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(cell); cell = ''; rows.push(row); row = [];
+      } else cell += c;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows.map(r => r.map(x => x.trim().replace(/\r\n?/g, '\n'))).filter(r => r.some(Boolean));
+  }
+  return { analyze, generate, zip, parseTable, parse };
+})();
+if (typeof module !== 'undefined') module.exports = ProEngine;
+
+</script>
+<script>
+const $ = id => document.getElementById(id);
+const COUNT_URL = 'count.php';
+const EXAMPLE_TEXT = 'First Name,Last Name,Title\nAvery,Example,Lead Pastor\nJordan,Sample-Whitfield,Director of Student Ministries\nCasey,Placeholder,Worship Leader';
+const EXAMPLE_TEMPLATE = {
+  name: 'Example layout', slides: 1, media: '', build: '', example: true,
+  boxes: [
+    { index: 0, text: 'Sample Name', caps: true, x: 150, y: 209, w: 1620, h: 372, valign: 2, fontPx: 125, align: 'center', color: '#ffffff', mappable: true, reason: '' },
+    { index: 1, text: 'Sample Title', caps: true, x: 150, y: 581, w: 1620, h: 290, valign: 0, fontPx: 80, align: 'center', color: '#ffffff', mappable: true, reason: '' }
+  ]
+};
+const S = { bytes: null, tpl: EXAMPLE_TEMPLATE, headers: [], rows: [], map: {}, chosen: new Set(), cleared: new Set(), selected: 0, edited: false, patternEdited: false };
+
+const sorted = () => [...S.tpl.boxes].sort((a, b) => a.y - b.y || a.x - b.x);
+const label = i => 'Box ' + (i + 1);
+
+function readData() {
+  const table = ProEngine.parseTable($('data').value);
+  const has = $('hasHeader').checked;
+  const width = table.reduce((m, r) => Math.max(m, r.length), 0);
+  S.headers = has && table.length
+    ? Array.from({ length: width }, (_, i) => table[0][i] || `Column ${i + 1}`)
+    : Array.from({ length: width }, (_, i) => `Column ${i + 1}`);
+  S.rows = (has ? table.slice(1) : table).map(r => S.headers.map((_, i) => r[i] || ''));
+  if (S.selected >= S.rows.length) S.selected = 0;
+}
+const token = h => `{${h}}`;
+function suggestions() {
+  // Puts split name columns together, then assigns the remaining columns in order.
+  const left = S.headers.slice(), out = [];
+  const find = re => left.find(h => re.test(h));
+  const first = find(/^(first|given|fname)(\b|_|\s|$)|first\s*name/i), last = find(/^(last|sur|family|lname)|last\s*name|surname/i);
+  if (first && last) {
+    const middle = find(/^(middle|mi$)/i);
+    out.push([first, middle, last].filter(Boolean).map(token).join(' '));
+    for (const h of [first, middle, last]) if (h) left.splice(left.indexOf(h), 1);
+  }
+  return out.concat(left.map(token));
+}
+function autoMap() {
+  const ideas = suggestions(), next = {}; let c = 0;
+  for (const b of sorted()) {
+    if (!b.mappable) continue;
+    next[b.index] = S.chosen.has(b.index) ? S.map[b.index] : ideas[c] || '';
+    c++;
+  }
+  S.map = next;
+}
+function fill(pattern, row) {
+  return pattern.replace(/\{([^{}]+)\}/g, (m, h) => {
+    const i = S.headers.indexOf(h.trim());
+    return i < 0 ? m : row[i];
+  }).split('\n').map(l => l.replace(/[ \t]+/g, ' ').trim()).join('\n').trim();
+}
+const unknownTokens = pattern => [...pattern.matchAll(/\{([^{}]+)\}/g)].map(m => m[1].trim()).filter(h => !S.headers.includes(h));
+function insertAtCursor(input, text) {
+  const a = input.selectionStart ?? input.value.length, b = input.selectionEnd ?? a;
+  const before = input.value.slice(0, a), after = input.value.slice(b);
+  const pad = before && !/\s$/.test(before) ? ' ' : '';
+  input.value = before + pad + text + after;
+  const at = (before + pad + text).length;
+  input.focus(); input.setSelectionRange(at, at);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+function chips(input) {
+  const wrap = document.createElement('div'); wrap.className = 'chips';
+  for (const h of S.headers) {
+    const c = document.createElement('button'); c.type = 'button'; c.className = 'chip'; c.textContent = h;
+    c.setAttribute('aria-label', `Insert ${h} column`);
+    c.onmousedown = e => e.preventDefault();
+    c.onclick = () => insertAtCursor(input, token(h));
+    wrap.append(c);
+  }
+  return wrap;
+}
+function renderMaps() {
+  const root = $('maps'); root.textContent = '';
+  sorted().forEach((b, i) => {
+    const wrap = document.createElement('div'); wrap.className = 'row';
+    const l = document.createElement('label'); l.htmlFor = 'map' + b.index;
+    l.append(`${label(i)}: `);
+    const q = document.createElement('span'); q.className = 'boxmeta'; q.textContent = `“${b.text.replace(/\n/g, ' ')}” · ${Math.round(b.w)} × ${Math.round(b.h)} · ${b.fontPx} pt`;
+    l.append(q);
+    const f = document.createElement('input');
+    f.type = 'text'; f.id = 'map' + b.index; f.disabled = !b.mappable; f.autocomplete = 'off'; f.spellcheck = false;
+    f.placeholder = 'Keep the template text';
+    f.value = b.mappable ? S.map[b.index] ?? '' : '';
+    f.oninput = () => { S.map[b.index] = f.value; S.chosen.add(b.index); defaultPattern(); refresh(); };
+    wrap.append(l, f);
+    let chipRow = null;
+    if (b.mappable && S.headers.length) { chipRow = chips(f); wrap.append(chipRow); }
+    if (b.mappable) {
+      const cl = document.createElement('label'); cl.className = 'check clear'; cl.htmlFor = 'clear' + b.index;
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'clear' + b.index;
+      cb.checked = S.cleared.has(b.index);
+      const sync = () => {
+        f.disabled = cb.checked;
+        f.placeholder = cb.checked ? 'Blank on every slide' : 'Keep the template text';
+        if (chipRow) chipRow.hidden = cb.checked;
+      };
+      cb.onchange = () => { cb.checked ? S.cleared.add(b.index) : S.cleared.delete(b.index); sync(); defaultPattern(); refresh(); };
+      cl.append(cb, 'Leave this box blank');
+      wrap.append(cl); sync();
+    }
+    if (b.reason) { const n = document.createElement('p'); n.className = 'hint'; n.textContent = b.reason; wrap.append(n); }
+    root.append(wrap);
+  });
+}
+function defaultPattern() {
+  if (S.patternEdited) return;
+  const b = sorted().find(x => x.mappable && !S.cleared.has(x.index) && (S.map[x.index] || '').trim());
+  $('pattern').value = b ? S.map[b.index].trim() : '';
+}
+function presentationName(row) {
+  return fill($('pattern').value, row).replace(/[\/\\:]+/g, '-').replace(/\s+/g, ' ').trim();
+}
+const canvas = document.createElement('canvas').getContext('2d');
+function fitIssue(b, text) {
+  if (!text) return '';
+  const shown = b.caps ? text.toUpperCase() : text;
+  canvas.font = `700 ${b.fontPx}px Arial, Helvetica, sans-serif`;
+  let lines = 0;
+  for (const para of shown.split('\n')) {
+    let line = '', n = 1;
+    for (const word of para.split(' ')) {
+      if (canvas.measureText(word).width > b.w) return 'long word';
+      const t = line ? line + ' ' + word : word;
+      if (canvas.measureText(t).width > b.w) { n++; line = word; } else line = t;
+    }
+    lines += n;
+  }
+  return lines * b.fontPx * 1.2 > b.h ? 'too tall' : '';
+}
+function valuesFor(row) {
+  const v = {};
+  for (const b of S.tpl.boxes) {
+    if (!b.mappable) continue;
+    if (S.cleared.has(b.index)) v[b.index] = '';
+    else if ((S.map[b.index] || '').trim()) v[b.index] = fill(S.map[b.index], row);
+  }
+  return v;
+}
+function outputs() {
+  const seen = new Map();
+  return S.rows.map(row => {
+    const values = valuesFor(row);
+    let name = presentationName(row), renamed = false;
+    const base = name;
+    const k = () => name.toLowerCase();
+    if (seen.has(k())) { let n = seen.get(k()) + 1; seen.set(base.toLowerCase(), n); name = `${base} (${n})`; renamed = true; }
+    seen.set(k(), seen.get(k()) || 1);
+    const unknown = [...Object.entries(S.map).filter(([k]) => !S.cleared.has(+k)).map(([, v]) => v), $('pattern').value].flatMap(p => unknownTokens(p || ''));
+    const issues = S.tpl.boxes.filter(b => b.index in values && fitIssue(b, values[b.index]));
+    const blank = S.tpl.boxes.filter(b => b.index in values && !values[b.index] && !S.cleared.has(b.index));
+    let state = ['Ready', ''];
+    if (unknown.length) state = ['Unknown column', 'err'];
+    else if (!name) state = ['No name', 'err'];
+    else if (issues.length) state = ['Check fit', 'warn'];
+    else if (blank.length) state = ['Blank field', 'warn'];
+    else if (renamed) state = ['Renamed', 'warn'];
+    return { name, values, row, state, over: new Set(issues.map(b => b.index)) };
+  });
+}
+function renderPreview(out) {
+  const root = $('slide'); root.textContent = '';
+  const cur = out[S.selected];
+  for (const b of S.tpl.boxes) {
+    const el = document.createElement('div');
+    const mapped = cur && b.index in cur.values;
+    el.className = 'tb' + (mapped ? '' : ' fixed') + (cur && cur.over.has(b.index) ? ' over' : '');
+    el.style.cssText = `left:${b.x / 19.2}%;top:${b.y / 10.8}%;width:${b.w / 19.2}%;height:${b.h / 10.8}%;font-size:${b.fontPx / 19.2}cqw;color:${b.color || '#fff'};text-align:${b.align === 'justify' ? 'left' : b.align};justify-content:${['flex-start', 'center', 'flex-end'][b.valign] || 'flex-start'}`;
+    const t = document.createElement('span');
+    const text = mapped ? cur.values[b.index] : b.text;
+    t.textContent = b.caps ? text.toUpperCase() : text;
+    el.append(t); root.append(el);
+  }
+  $('pvMeta').textContent = cur ? `${S.selected + 1} of ${out.length}` : '';
+  $('pager').hidden = !cur;
+  $('pvPrev').disabled = S.selected <= 0;
+  $('pvNext').disabled = S.selected >= out.length - 1;
+  $('pvLabel').textContent = S.tpl.example ? 'PREVIEW · EXAMPLE' : 'PREVIEW';
+}
+function renderTable(out) {
+  const head = $('thead'); head.textContent = '';
+  for (const t of ['#', 'Presentation', 'Status']) { const th = document.createElement('th'); th.textContent = t; head.append(th); }
+  const body = $('tbody'); body.textContent = '';
+  out.forEach((o, i) => {
+    const tr = document.createElement('tr');
+    tr.setAttribute('aria-selected', String(i === S.selected)); tr.tabIndex = 0;
+    const a = document.createElement('td'); a.className = 'num'; a.textContent = i + 1;
+    const b = document.createElement('td'); b.textContent = o.name || '(no name)';
+    const c = document.createElement('td'); const p = document.createElement('span');
+    p.className = 'pill ' + o.state[1]; p.textContent = o.state[0]; c.append(p);
+    tr.append(a, b, c);
+    tr.onclick = () => select(i, true);
+    tr.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(i, true); } };
+    body.append(tr);
+  });
+  const t = $('runTitle'); t.textContent = `${out.length} presentation${out.length === 1 ? '' : 's'}`;
+  if (S.tpl.example) { const x = document.createElement('span'); x.className = 'example'; x.textContent = 'example'; t.append(x); }
+}
+function select(i, focusRow) {
+  const total = S.rows.length;
+  if (!total) return;
+  i = Math.max(0, Math.min(total - 1, i));
+  if (i !== S.selected) { S.selected = i; refresh(); }
+  const tr = $('tbody').children[i];
+  if (!tr) return;
+  if (focusRow) tr.focus({ preventScroll: true });
+  const box = tr.closest('.tablewrap'), head = box.querySelector('thead').offsetHeight;
+  if (tr.offsetTop - head < box.scrollTop) box.scrollTop = tr.offsetTop - head;
+  else if (tr.offsetTop + tr.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTop = tr.offsetTop + tr.offsetHeight - box.clientHeight;
+}
+function refresh() {
+  const out = outputs();
+  renderPreview(out); renderTable(out);
+  const bad = out.filter(o => o.state[1] === 'err').length;
+  const anyMap = S.cleared.size > 0 || Object.values(S.map).some(v => (v || '').trim());
+  const unknown = [...new Set([...Object.entries(S.map).filter(([k]) => !S.cleared.has(+k)).map(([, v]) => v), $('pattern').value].flatMap(p => unknownTokens(p || '')))];
+  const go = $('go');
+  go.disabled = !S.bytes || !out.length || !!bad || !anyMap;
+  go.textContent = S.bytes && out.length ? `Download ${out.length} as zip` : 'Download zip';
+  $('why').textContent = !S.bytes ? 'Add your template to turn this on. The list here is an example.'
+    : !out.length ? 'Add names in step 2.'
+    : unknown.length ? `No column is named ${unknown.join(', ')}. Check the spelling in steps 3 and 4.`
+    : !anyMap ? 'Add at least one column to a text box in step 3.'
+    : bad ? 'Some rows have no name. Check the name pattern in step 4.' : '';
+  const hdrs = S.headers.map(h => `{${h}}`).join('  ');
+  $('patternHint').textContent = hdrs ? `Use ${hdrs} to fill in a column. Example: Event - {${S.headers[0]}}` : 'Add names first.';
+  return out;
+}
+function dataChanged() {
+  readData(); autoMap(); renderMaps(); defaultPattern(); refresh();
+}
+function recordUse(count) {
+  // Sends only how many presentations were made. Never blocks the download.
+  if (!COUNT_URL || COUNT_URL.startsWith('/*')) return;
+  try {
+    const body = JSON.stringify({ presentations: count });
+    if (!(navigator.sendBeacon && navigator.sendBeacon(COUNT_URL, new Blob([body], { type: 'text/plain' }))))
+      fetch(COUNT_URL, { method: 'POST', body, keepalive: true, headers: { 'Content-Type': 'text/plain' } }).catch(() => {});
+  } catch {}
+}
+const keepFocus = () => {
+  // A pager button that just turned off drops focus; hand it to the preview so the arrow keys keep working.
+  const a = document.activeElement;
+  if (!a || a === document.body || a.disabled) $('monitor').focus({ preventScroll: true });
+};
+$('pvPrev').onclick = () => { select(S.selected - 1, false); keepFocus(); };
+$('pvNext').onclick = () => { select(S.selected + 1, false); keepFocus(); };
+$('viewer').addEventListener('keydown', e => {
+  if (e.altKey || e.ctrlKey || e.metaKey || e.target.closest('input, textarea, select')) return;
+  const inRow = !!e.target.closest('#tbody tr');
+  const step = { ArrowUp: -1, ArrowDown: 1, ArrowLeft: -1, ArrowRight: 1 }[e.key];
+  if (step) { e.preventDefault(); select(S.selected + step, inRow); keepFocus(); }
+  else if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); select(e.key === 'Home' ? 0 : S.rows.length - 1, inRow); keepFocus(); }
+});
+function say(id, text) { const n = $(id); n.textContent = text; n.hidden = !text; }
+
+async function loadTemplate(file) {
+  say('tplErr', ''); say('status', '');
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const tpl = ProEngine.analyze(bytes);
+    S.bytes = bytes; S.tpl = tpl; S.map = {}; S.chosen.clear(); S.cleared.clear();
+    $('tplName').textContent = file.name;
+    const n = tpl.boxes.length;
+    $('tplSub').textContent = `${n} text box${n === 1 ? '' : 'es'}${tpl.slides > 1 ? ` across ${tpl.slides} slides` : ''}. Click to choose another.`;
+    const notes = [];
+    if (tpl.media) notes.push(`The background links to ${tpl.media.replace(/^[0-9A-F-]{36}/, '')} in ProPresenter's media folder, so import these on a computer that has that file.`);
+    say('tplNote', notes.join(' '));
+    if (!S.edited) { $('data').value = ''; S.selected = 0; }
+    if (!S.patternEdited) $('pattern').value = '';
+    dataChanged();
+  } catch (e) { say('tplErr', e.message); }
+}
+function wireDrop(zone, input, handler) {
+  input.onchange = () => { if (input.files[0]) handler(input.files[0]); input.value = ''; };
+  for (const t of ['dragenter', 'dragover']) zone.addEventListener(t, e => { e.preventDefault(); zone.classList.add('over'); });
+  for (const t of ['dragleave', 'drop']) zone.addEventListener(t, e => { e.preventDefault(); zone.classList.remove('over'); });
+  zone.addEventListener('drop', e => { if (e.dataTransfer.files[0]) handler(e.dataTransfer.files[0]); });
+}
+wireDrop($('dropTpl'), $('tplFile'), loadTemplate);
+$('csvFile').onchange = async () => {
+  const f = $('csvFile').files[0]; if (!f) return;
+  $('csvFile').value = ''; say('dataErr', '');
+  if (/\.(xlsx|xls|numbers)$/i.test(f.name)) { say('dataErr', 'Save the spreadsheet as CSV first, or copy the cells and paste them here.'); return; }
+  $('data').value = await f.text(); S.edited = true; dataChanged();
+};
+$('data').oninput = () => { S.edited = true; dataChanged(); };
+$('hasHeader').onchange = dataChanged;
+$('pattern').oninput = () => { S.patternEdited = true; refresh(); };
+const BG_HINT = 'Preview only. It isn\u2019t added to your files.';
+let bgUrl = '';
+function clearBackground() {
+  if (bgUrl) URL.revokeObjectURL(bgUrl);
+  bgUrl = '';
+  $('slide').style.backgroundImage = ''; $('slide').classList.remove('has-bg');
+  $('bgHint').textContent = BG_HINT;
+  $('bgClear').hidden = true;
+  $('bgLabel').textContent = 'Add slide background to preview';
+  $('bgFile').value = '';
+}
+$('bgFile').onchange = () => {
+  const f = $('bgFile').files[0]; if (!f) return;
+  if (bgUrl) URL.revokeObjectURL(bgUrl);
+  bgUrl = URL.createObjectURL(f);
+  $('slide').style.backgroundImage = `url("${bgUrl}")`; $('slide').classList.add('has-bg');
+  $('bgHint').textContent = f.name + ' (preview only)';
+  $('bgClear').hidden = false;
+  $('bgLabel').textContent = 'Replace background';
+  $('bgFile').value = '';
+};
+$('bgClear').onclick = clearBackground;
+$('go').onclick = async () => {
+  const out = refresh();
+  const go = $('go'); go.disabled = true; say('status', '');
+  try {
+    const files = out.map(o => ({ name: o.name + '.pro', data: ProEngine.generate(S.bytes, o.name, o.values) }));
+    const blob = ProEngine.zip(files);
+    const filename = (S.tpl.name.replace(/[\/\\:]+/g, '-') || 'Slide Merge') + ' merge.zip';
+    const host = window.claude?.use ? await window.claude.use('downloads') : undefined;
+    if (host) await host.save({ filename, data: blob });
+    else if (host === null) throw { code: 'unavailable' };
+    else {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+    }
+    recordUse(files.length);
+    const n = $('status'); n.className = 'note ok';
+    say('status', `Saved ${files.length} presentation${files.length === 1 ? '' : 's'}. Unzip the file, then pull the .pro files into your ProPresenter library.`);
+  } catch (e) {
+    const n = $('status'); n.className = 'note err';
+    if (e && e.code === 'declined') say('status', 'The download was canceled, so nothing was saved.');
+    else if (e && e.code === 'rate_limited') say('status', 'A download prompt is already open. Finish it, then try again.');
+    else if (e && e.code) say('status', 'Saving files isn’t available in this view. Open the page directly in your browser and try again.');
+    else say('status', 'The files could not be built: ' + (e && e.message || 'unknown error'));
+  }
+  refresh();
+};
+$('data').value = EXAMPLE_TEXT;
+dataChanged();
+</script>
+
+</body>
+</html>
